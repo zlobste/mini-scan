@@ -31,23 +31,21 @@ func main() {
 
 	for range time.Tick(time.Second) {
 
-		var data []byte
-		var dataFormat int
-		if rand.Intn(2) == 0 {
-			dataFormat = scanning.BinaryFormat
-			data = []byte(fmt.Sprintf("this is binary data: %d", rand.Intn(100)))
-		} else {
-			dataFormat = scanning.JsonFormat
-			data = []byte(fmt.Sprintf(`{"key": "value-%d"}`, rand.Intn(100)))
+		scan := &scanning.Scan{
+			Ip:        fmt.Sprintf("1.1.1.%d", rand.Intn(255)),
+			Port:      uint32(rand.Intn(65535)),
+			Service:   services[rand.Intn(len(services))],
+			Timestamp: time.Now().Unix(),
 		}
 
-		scan := &scanning.Scan{
-			Ip:         fmt.Sprintf("1.1.1.%d", rand.Intn(255)),
-			Port:       uint32(rand.Intn(65535)),
-			Service:    services[rand.Intn(len(services))],
-			Timestamp:  time.Now().Unix(),
-			DataFormat: dataFormat,
-			Data:       data,
+		serviceResp := fmt.Sprintf("service response: %d", rand.Intn(100))
+
+		if rand.Intn(2) == 0 {
+			scan.DataVersion = scanning.V1
+			scan.Data = &scanning.V1Data{ResponseBytesUtf8: []byte(serviceResp)}
+		} else {
+			scan.DataVersion = scanning.V2
+			scan.Data = &scanning.V2Data{ResponseStr: serviceResp}
 		}
 
 		encoded, err := json.Marshal(scan)
