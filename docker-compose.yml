@@ -1,4 +1,4 @@
-version: '3'
+version: '3.8'
 services:
 
   # Starts the P/S emulator
@@ -9,6 +9,24 @@ services:
     entrypoint: gcloud beta emulators pubsub start --project test-project --host-port 0.0.0.0:8085
     healthcheck:
       test: ["CMD", "curl", "-f", "http://pubsub:8085"]
+      interval: 5s
+      timeout: 10s
+      retries: 3
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 10s
       retries: 3
@@ -35,8 +53,32 @@ services:
       mk-topic:
         condition: service_completed_successfully
     environment:
-      PUBSUB_EMULATOR_HOST: pubsub:8085
-      PUBSUB_PROJECT_ID: test-project
+      PUBSUB_EMULATOR_HOST: ${PUBSUB_EMULATOR_HOST}
+      PUBSUB_PROJECT_ID: ${PUBSUB_PROJECT_ID}
     build:
       context: .
       dockerfile: ./cmd/scanner/Dockerfile
+
+  # Runs the processor
+  processor:
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mk-subscription:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PUBSUB_EMULATOR_HOST: ${PUBSUB_EMULATOR_HOST}
+      PUBSUB_PROJECT_ID: ${PUBSUB_PROJECT_ID}
+      PROCESSOR_SUBSCRIPTION: ${PROCESSOR_SUBSCRIPTION}
+      PROCESSOR_LOG_LEVEL: ${PROCESSOR_LOG_LEVEL}
+    build:
+      context: .
+      dockerfile: ./cmd/processor/Dockerfile
+
+volumes:
+  postgres_data:
