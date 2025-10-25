@@ -69,3 +69,5 @@ Run storage tests (requires PostgreSQL):
 ```bash
 TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/scans?sslmode=disable" go test ./pkg/storage/... -v
 ```
+
+See [TESTING.md](TESTING.md) for manual testing instructions.
