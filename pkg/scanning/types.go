@@ -7,12 +7,12 @@ const (
 )
 
 type Scan struct {
-	Ip          string      `json:"ip"`
-	Port        uint32      `json:"port"`
-	Service     string      `json:"service"`
-	Timestamp   int64       `json:"timestamp"`
-	DataVersion int         `json:"data_version"`
-	Data        interface{} `json:"data"`
+	Ip          string `json:"ip"`
+	Port        uint32 `json:"port"`
+	Service     string `json:"service"`
+	Timestamp   int64  `json:"timestamp"`
+	DataVersion int    `json:"data_version"`
+	Data        any    `json:"data"`
 }
 
 type V1Data struct {
