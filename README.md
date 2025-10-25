@@ -1,53 +1,71 @@
 # Mini-Scan
 
-Hello!
+A Go application that processes internet scan results from Google Cloud Pub/Sub, handles multiple message formats, and persists data to PostgreSQL.
 
-As you've heard by now, Censys scans the internet at an incredible scale. Processing the results necessitates scaling horizontally across thousands of machines. One key aspect of our architecture is the use of distributed queues to pass data between machines.
+## Quick Start
 
----
+```bash
+# Set up environment
+cp .env.example .env
 
-The `docker-compose.yml` file sets up a toy example of a scanner. It spins up a Google Pub/Sub emulator, creates a topic and subscription, and publishes scan results to the topic. It can be run via `docker compose up`.
+# Start the stack
+docker compose up -d
 
-Your job is to build the data processing side. It should:
+# Check logs
+docker compose logs -f processor
+```
 
-1. Pull scan results from the subscription `scan-sub`.
-2. Maintain an up-to-date record of each unique `(ip, port, service)`. This should contain when the service was last scanned and a string containing the service's response.
+## Architecture
 
-> **_NOTE_**
-> The scanner can publish data in two formats, shown below. In both of the following examples, the service response should be stored as: `"hello world"`.
->
-> ```javascript
-> {
->   // ...
->   "data_version": 1,
->   "data": {
->     "response_bytes_utf8": "aGVsbG8gd29ybGQ="
->   }
-> }
->
-> {
->   // ...
->   "data_version": 2,
->   "data": {
->     "response_str": "hello world"
->   }
-> }
-> ```
+The system consists of four components:
 
-Your processing application should be able to be scaled horizontally, but this isn't something you need to actually do. The processing application should use `at-least-once` semantics where ever applicable.
+1. **Scanner** - Publishes scan results to Pub/Sub topic every second in V1 or V2 format
+2. **Pub/Sub** - Distributes messages with at-least-once delivery semantics
+3. **Processor** - Consumes and processes messages:
+   - Decodes V1 (base64-encoded) and V2 (plain string) formats
+   - Deduplicates based on timestamp comparison
+   - Persists to database with update-on-conflict logic
+4. **PostgreSQL** - Stores unique scans by `(ip, port, service)` composite key
 
-You may write this in any languages you choose, but Go would be preferred.
+**Scaling:** Multiple processor instances share a single database. Pub/Sub automatically distributes work across them.
 
-You may use any data store of your choosing, with `sqlite` being one example. Like our own code, we expect the code structure to make it easy to switch data stores.
+## Configuration
 
-Please note that Google Pub/Sub is best effort ordering and we want to keep the latest scan. While the example scanner does not publish scans at a rate where this would be an issue, we expect the application to be able to handle extreme out of orderness. Consider what would happen if the application received a scan that is 24 hours old.
+Environment variables (see `.env.example` for defaults):
 
----
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `POSTGRES_HOST` | `postgres` | PostgreSQL host |
+| `POSTGRES_PORT` | `5432` | PostgreSQL port |
+| `POSTGRES_USER` | `postgres` | Database user |
+| `POSTGRES_PASSWORD` | `postgres` | Database password |
+| `POSTGRES_DB` | `scans` | Database name |
+| `PUBSUB_EMULATOR_HOST` | `localhost:8085` | Pub/Sub emulator endpoint |
+| `PUBSUB_PROJECT` | `test-project` | Project ID |
+| `SUBSCRIPTION` | `scan-sub` | Subscription to consume |
 
-Please upload the code to a publicly accessible GitHub, GitLab or other public code repository account. This README file should be updated, briefly documenting your solution. Like our own code, we expect testing instructions: whether it’s an automated test framework, or simple manual steps.
+## Data Storage
 
-To help set expectations, we believe you should aim to take no more than 4 hours on this task.
+**Table:** `scans`
 
-We understand that you have other responsibilities, so if you think you’ll need more than 5 business days, just let us know when you expect to send a reply.
+| Column | Type | Notes |
+|--------|------|-------|
+| `ip` | TEXT | IP address |
+| `port` | INTEGER | Port number |
+| `service` | TEXT | Service name |
+| `last_scanned_at` | BIGINT | Unix timestamp |
+| `response_text` | TEXT | Service response |
 
-Please don’t hesitate to ask any follow-up questions for clarification.
+**Key:** Composite primary key on `(ip, port, service)`
+
+## Testing
+
+Run all tests:
+```bash
+go test ./...
+```
+
+Run storage tests (requires PostgreSQL):
+```bash
+TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/scans?sslmode=disable" go test ./pkg/storage/... -v
+```
