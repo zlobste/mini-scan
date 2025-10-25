@@ -1,8 +1,12 @@
-module github.com/censys/scan-takehome
+module github.com/zlobste/mini-scan
 
-go 1.20
+go 1.23
 
-require cloud.google.com/go/pubsub v1.33.0
+require (
+	cloud.google.com/go/pubsub v1.33.0
+	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/lib/pq v1.10.9
+)
 
 require (
 	cloud.google.com/go v0.110.2 // indirect
